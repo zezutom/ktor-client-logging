@@ -6,13 +6,12 @@ import io.ktor.client.engine.*
 import io.ktor.client.engine.mock.*
 import io.ktor.client.features.json.*
 import io.ktor.client.features.json.serializer.*
-import io.ktor.client.features.observer.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.Serializable
 
-class TestClient(engine: HttpClientEngine) {
+class TestClient(private val httpClient: HttpClient) {
     
     companion object {
         fun newInstance(): TestClient {
@@ -23,15 +22,14 @@ class TestClient(engine: HttpClientEngine) {
                     headers = headersOf(HttpHeaders.ContentType, "application/json")
                 )
             }
-            return TestClient(mockEngine)
+            return TestClient(httpClient(mockEngine))
         }
-            
-    }
-    private val httpClient = HttpClient(engine) {
-        install(JsonFeature) {
-            serializer = KotlinxSerializer()
-        }
-        install(ClientLogging)
+        private fun httpClient(engine: HttpClientEngine) = HttpClient(engine) {
+            install(JsonFeature) {
+                serializer = KotlinxSerializer()
+            }
+            install(ClientLogging)
+        }       
     }
 
     suspend fun getIp(): IpResponse = 
