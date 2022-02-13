@@ -1,6 +1,7 @@
 package com.tomaszezula.ktor.client
 
 import com.tomaszezula.ktor.client.logging.ClientLogging
+import com.tomaszezula.ktor.client.tracing.TracingConfig
 import io.ktor.client.*
 import io.ktor.client.engine.*
 import io.ktor.client.engine.mock.*
@@ -28,7 +29,9 @@ class TestClient(private val httpClient: HttpClient) {
             install(JsonFeature) {
                 serializer = KotlinxSerializer()
             }
-            install(ClientLogging)
+            install(ClientLogging) {
+                tracingConfig = TracingConfig(traceIdKey = "correlationId")
+            }
         }       
     }
 

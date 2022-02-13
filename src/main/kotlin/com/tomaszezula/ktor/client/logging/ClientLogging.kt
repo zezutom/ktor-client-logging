@@ -5,6 +5,7 @@ import com.tomaszezula.ktor.client.tracing.TracingConfig
 import com.tomaszezula.ktor.client.tracing.TracingContext
 import io.ktor.client.*
 import io.ktor.client.features.*
+import io.ktor.client.features.observer.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -51,14 +52,17 @@ class ClientLogging(
                     throw cause
                 }
             }
-            
-            scope.responsePipeline.intercept(HttpResponsePipeline.After) {
+
+            scope.receivePipeline.intercept(HttpReceivePipeline.After) { response ->
+                val (loggingContent, responseContent) = response.content.split(scope)
+                val newClientCall = context.wrapWithContent(responseContent)
+                val sideCall = context.wrapWithContent(loggingContent)
                 tryRun {
                     feature.withTraceId {
-                        feature.logResponse(context.response)
+                        feature.logResponse(sideCall.response)
                     }
                 }
-                proceed()
+                proceedWith(newClientCall.response)
             }
         }
 
