@@ -10,10 +10,14 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.utils.io.*
 import kotlinx.serialization.Serializable
+import java.util.*
 
 class TestClient(private val httpClient: HttpClient) {
     
     companion object {
+        private val EncodedCredentials =
+            Base64.getEncoder().encodeToString("test:test".toByteArray(Charsets.UTF_8))
+        
         fun newInstance(): TestClient {
             val mockEngine = MockEngine {
                 respond(
@@ -24,16 +28,23 @@ class TestClient(private val httpClient: HttpClient) {
             }
             return TestClient(httpClient(mockEngine))
         }
+
         private fun httpClient(engine: HttpClientEngine) = HttpClient(engine) {
             install(JsonFeature) {
                 serializer = KotlinxSerializer()
             }
             install(ClientLogging)
-        }       
+        }
     }
 
-    suspend fun getIp(): IpResponse = 
+    suspend fun getIp(): IpResponse =
         httpClient.get("https://api.ipify.org/?format=json")
+
+    suspend fun getIpWithAuth(): IpResponse =
+        httpClient.get("https://api.ipify.org/?format=json") {
+            header(HttpHeaders.Authorization, "Basic $EncodedCredentials")
+        }
+
 }
 
 @Serializable

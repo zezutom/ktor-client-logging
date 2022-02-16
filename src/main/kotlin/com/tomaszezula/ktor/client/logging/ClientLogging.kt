@@ -23,8 +23,7 @@ import java.nio.charset.Charset
 import kotlin.coroutines.coroutineContext
 
 class ClientLogging(
-    private val logger: Logger,
-    private val level: Level,
+    val logger: Logger,
     private val requestConfig: RequestConfig,
     private val responseConfig: ResponseConfig,
     private val filters: List<(HttpRequestBuilder) -> Boolean>,
@@ -32,14 +31,6 @@ class ClientLogging(
 ) {
 
     private val tracing = Tracing(tracingConfig)
-
-    private val isLoggingEnabled: Boolean =
-        when (level) {
-            Level.TRACE -> logger.isTraceEnabled
-            Level.DEBUG -> logger.isDebugEnabled
-            Level.INFO -> logger.isInfoEnabled
-            else -> false   // WARN and ERROR are only for exception logging
-        }
 
     class Config {
         var logger: Logger = LoggerFactory.getLogger(HttpClient::class.java)
@@ -50,11 +41,17 @@ class ClientLogging(
         var tracingConfig: TracingConfig = TracingConfig()
         var filters: List<(HttpRequestBuilder) -> Boolean> = emptyList()
 
-        fun level(init: LevelBuilder.() -> Unit): LevelBuilder = levelBuilder.apply(init)
+        fun level(init: LevelBuilder.() -> Unit): LevelBuilder {
+            val builder = levelBuilder.apply(init)
+            requestBuilder.levelBuilder.level = builder.level
+            responseBuilder.levelBuilder.level = builder.level
+            return builder
+        }
+
         fun req(init: RequestBuilder.() -> Unit): RequestBuilder = RequestBuilder().apply(init)
         fun res(init: ResponseBuilder.() -> Unit): ResponseBuilder = ResponseBuilder().apply(init)
 
-        class LevelBuilder() {
+        class LevelBuilder {
             var level: Level = Level.DEBUG
 
             fun trace() {
@@ -70,7 +67,7 @@ class ClientLogging(
             }
         }
 
-        class RequestBuilder() {
+        class RequestBuilder {
             val levelBuilder: LevelBuilder = LevelBuilder()
             val authorizationBuilder: AuthorizationBuilder = AuthorizationBuilder()
             var excludedHeaders: Set<String> = emptySet()
@@ -107,7 +104,7 @@ class ClientLogging(
             }
         }
 
-        class ResponseBuilder() {
+        class ResponseBuilder {
             val levelBuilder: LevelBuilder = LevelBuilder()
             var loggingEnabled: Boolean = true
 
@@ -125,8 +122,8 @@ class ClientLogging(
         override fun install(feature: ClientLogging, scope: HttpClient) {
             scope.sendPipeline.intercept(HttpSendPipeline.Monitoring) {
                 try {
-                    if (feature.filters.isEmpty() || feature.filters.any { it(context) }) {
-                        tryRun { 
+                    if (feature.isLoggable(context) && feature.requestConfig.loggingEnabled) {
+                        tryRun {
                             feature.withTraceId {
                                 feature.logRequest(context)
                             }
@@ -140,7 +137,7 @@ class ClientLogging(
             }
 
             scope.receivePipeline.intercept(HttpReceivePipeline.After) { response ->
-                if (feature.isLoggingEnabled) {
+                if (feature.responseConfig.loggingEnabled) {
                     val (loggingContent, responseContent) = response.content.split(scope)
                     val newClientCall = context.wrapWithContent(responseContent)
                     val sideCall = context.wrapWithContent(loggingContent)
@@ -159,7 +156,6 @@ class ClientLogging(
             val authorizationBuilder = config.requestBuilder.authorizationBuilder
             return ClientLogging(
                 config.logger,
-                config.levelBuilder.level,
                 RequestConfig(
                     config.requestBuilder.levelBuilder.level,
                     RequestConfig.AuthorizationConfig(
@@ -167,7 +163,10 @@ class ClientLogging(
                         else if (authorizationBuilder.usernameOnly) Confidentiality.USERNAME_ONLY
                         else Confidentiality.EXCLUDE
                     ),
-                    config.requestBuilder.excludedHeaders,
+                    config.requestBuilder.excludedHeaders.plus(
+                        if (config.requestBuilder.authorizationBuilder.disabled) setOf(HttpHeaders.Authorization)
+                        else emptySet()
+                    ),
                     config.requestBuilder.loggingEnabled
                 ),
                 ResponseConfig(
@@ -202,33 +201,41 @@ class ClientLogging(
 
     private fun logRequest(request: HttpRequestBuilder) {
         val requestUrl = Url(request.url)
-        val headers = extractHeaders(request.headers.build())
+        val headers = extractHeaders(
+            request.headers.entries()
+                .filterNot { requestConfig.excludedHeaders.contains(it.key) }.toSet()
+        )
+        
         val body = when (val body = request.body) {
             is TextContent -> String(body.bytes())
             else -> "[request body omitted]"
         }
-        logger.log("Request ${request.method.value} ${requestUrl}, headers: $headers, body: $body")
+        logger.log(
+            "Request ${request.method.value} ${requestUrl}, headers: $headers, body: $body",
+            requestConfig.level
+        )
     }
 
     private suspend fun logResponse(response: HttpResponse) {
         val from = "${response.call.request.method.value} ${response.call.request.url}"
         val statusCode = "${response.status.value} ${response.status.description}"
-        val headers = extractHeaders(response.headers)
+        val headers = extractHeaders(response.headers.entries())
         val body = response.contentType()?.let { contentType ->
             val charset = contentType.charset() ?: Charsets.UTF_8
             response.content.tryReadText(charset) ?: "[response body omitted]"
         }
-        logger.log("Response from: $from, statusCode: $statusCode, headers: $headers${body?.let { ", body: $it" } ?: ""}")
+        logger.log(
+            "Response from: $from, statusCode: $statusCode, headers: $headers${body?.let { ", body: $it" } ?: ""}",
+            responseConfig.level
+        )
     }
 
     private fun logRequestException(request: HttpRequestBuilder, cause: Throwable) {
         logger.error("Request ${Url(request.url)} failed!", cause)
     }
 
-    private fun extractHeaders(headers: Headers): List<Map.Entry<String, List<Any>>> =
-        headers.entries()
-            .toList()
-            .sortedBy { it.key }
+    private fun extractHeaders(headers: Set<Map.Entry<String, List<Any>>>): List<Map.Entry<String, List<Any>>> =
+        headers.sortedBy { it.key }
 
     private suspend inline fun ByteReadChannel.tryReadText(charset: Charset): String? = try {
         readRemaining().readText(charset = charset)
@@ -236,7 +243,10 @@ class ClientLogging(
         null
     }
 
-    private fun Logger.log(message: String) {
+    private fun isLoggable(context: HttpRequestBuilder): Boolean =
+        filters.isEmpty() || filters.any { it(context) }
+
+    private fun Logger.log(message: String, level: Level) {
         when (level) {
             Level.TRACE -> log(message, logger::trace)
             Level.DEBUG -> log(message, logger::debug)
