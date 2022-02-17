@@ -37,8 +37,12 @@ class TestClient(private val httpClient: HttpClient) {
         }
     }
 
-    suspend fun getIp(): IpResponse =
-        httpClient.get("https://api.ipify.org/?format=json")
+    suspend fun getIp(headers: Map<String, String> = emptyMap()): IpResponse =
+        httpClient.get("https://api.ipify.org/?format=json") {
+            headers {
+                headers.forEach(this::append)
+            }
+        }
 
     suspend fun getIpWithAuth(): IpResponse =
         httpClient.get("https://api.ipify.org/?format=json") {

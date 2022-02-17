@@ -108,6 +108,15 @@ abstract class TestBase {
         withRequest(traceId, deserializedResponse, testClient(httpClient)::getIpWithAuth, block)
     }
 
+    protected suspend fun withHeaders(
+        headers: Map<String, String>,
+        httpClient: HttpClient = this.httpClient,
+        traceId: TraceId? = null,
+        block: () -> Unit
+    ) {
+        withRequest(traceId, deserializedResponse, { testClient(httpClient).getIp(headers) }, block)
+    }
+
     protected suspend fun withRequest(
         httpClient: HttpClient = this.httpClient,
         traceId: TraceId? = null,

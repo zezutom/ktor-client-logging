@@ -19,17 +19,7 @@ class ClientLoggingBasicTest : TestBase() {
     fun logsResponseOnDebugLevel() = runBlocking {
         verifyResponse(Level.DEBUG)
     }
-
-    @Test
-    fun excludesAuthorizationHeader() = runBlocking {
-        withAuthHeader {
-            assertTrue(
-                "Authorization header should not be logged!",
-                memoryAppender.findEvents("Authorization", Level.DEBUG).isEmpty()
-            )
-        }
-    }
-
+    
     @Test
     fun logsTraceId() = runBlocking {
         val traceId = TraceId.generate()
