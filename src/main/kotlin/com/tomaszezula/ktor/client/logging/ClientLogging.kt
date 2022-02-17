@@ -48,8 +48,8 @@ class ClientLogging(
             return builder
         }
 
-        fun req(init: RequestBuilder.() -> Unit): RequestBuilder = RequestBuilder().apply(init)
-        fun res(init: ResponseBuilder.() -> Unit): ResponseBuilder = ResponseBuilder().apply(init)
+        fun req(init: RequestBuilder.() -> Unit): RequestBuilder = requestBuilder.apply(init)
+        fun res(init: ResponseBuilder.() -> Unit): ResponseBuilder = responseBuilder.apply(init)
 
         class LevelBuilder {
             var level: Level = Level.DEBUG

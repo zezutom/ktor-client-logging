@@ -28,19 +28,18 @@ abstract class TestBase {
 
     private lateinit var logger: Logger
 
-    protected lateinit var memoryAppender: MemoryAppender
-
-    private lateinit var client: TestClient
+    private lateinit var httpClient: HttpClient
 
     private lateinit var tracing: Tracing
 
     private val deserializedResponse = IpResponse("127.0.0.1")
 
+    protected lateinit var memoryAppender: MemoryAppender
+
     @Before
     fun before() = runBlocking {
-        val httpClient = httpClient()
+        httpClient = loggingHttpClient()
         logger = httpClient[ClientLogging].logger
-        client = TestClient(httpClient)
         tracing = Tracing(TracingConfig())
         initLogging()
     }
@@ -50,9 +49,12 @@ abstract class TestBase {
         memoryAppender.reset()
         memoryAppender.stop()
     }
-
-    protected abstract fun init(client: HttpClient): HttpClient
-
+    
+    protected open fun init(client: HttpClient): HttpClient =
+        client.config {
+            install(ClientLogging)
+        }
+    
     protected fun verifyRequest(level: Level) = runBlocking {
         withRequest {
             TestCase.assertTrue(
@@ -74,12 +76,17 @@ abstract class TestBase {
         memoryAppender = MemoryAppender()
         memoryAppender.context = LoggerFactory.getILoggerFactory() as LoggerContext
         val logbackLogger = logger as ch.qos.logback.classic.Logger
-        logbackLogger.level = Level.DEBUG
+        logbackLogger.level = Level.TRACE
         logbackLogger.addAppender(memoryAppender)
         memoryAppender.start()
     }
 
-    private fun httpClient(): HttpClient {
+    private fun loggingHttpClient(): HttpClient =
+        httpClient().config {
+            install(ClientLogging)
+        }
+
+    protected fun httpClient(): HttpClient {
         val mockEngine = MockEngine {
             respond(
                 content = ByteReadChannel("""{"ip":"${deserializedResponse.ip}"}"""),
@@ -98,12 +105,18 @@ abstract class TestBase {
     }
 
     protected suspend fun withAuthHeader(traceId: TraceId? = null, block: () -> Unit) {
-        withRequest(traceId, deserializedResponse, client::getIpWithAuth, block)
+        withRequest(traceId, deserializedResponse, testClient(httpClient)::getIpWithAuth, block)
     }
 
-    protected suspend fun withRequest(traceId: TraceId? = null, block: () -> Unit) {
-        withRequest(traceId, deserializedResponse, client::getIp, block)
+    protected suspend fun withRequest(
+        httpClient: HttpClient = this.httpClient,
+        traceId: TraceId? = null,
+        block: () -> Unit
+    ) {
+        withRequest(traceId, deserializedResponse, testClient(httpClient)::getIp, block)
     }
+
+    private fun testClient(httpClient: HttpClient): TestClient = TestClient(httpClient)
 
     private suspend fun <T> withRequest(
         traceId: TraceId? = null,

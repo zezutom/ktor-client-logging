@@ -2,21 +2,17 @@ package com.tomaszezula.ktor.client.logging
 
 import ch.qos.logback.classic.Level
 import com.tomaszezula.ktor.client.tracing.TraceId
-import io.ktor.client.*
 import junit.framework.TestCase.assertTrue
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 class ClientLoggingBasicTest : TestBase() {
-
-    override fun init(client: HttpClient): HttpClient =
-        client.config {
-            install(ClientLogging)
-        }
-
+    
     @Test
     fun logsRequestOnDebugLevel() = runBlocking {
-        verifyRequest(Level.DEBUG)
+        withRequest { 
+            verifyRequest(Level.DEBUG)
+        }
     }
 
     @Test
@@ -37,7 +33,7 @@ class ClientLoggingBasicTest : TestBase() {
     @Test
     fun logsTraceId() = runBlocking {
         val traceId = TraceId.generate()
-        withRequest(traceId) {
+        withRequest(traceId = traceId) {
             memoryAppender.getAllEvents().forEach { event ->
                 assertTrue(
                     "Trace ID should be part of MDC!",
