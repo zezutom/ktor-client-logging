@@ -8,7 +8,7 @@ import org.junit.Test
 class ClientLoggingRequestHeaders : TestBase() {
 
     @Test
-    fun excludesAuthorizationHeader() = runBlocking {
+    fun excludesAuthorizationHeaderByDefault() = runBlocking {
         withAuthHeader {
             assertTrue(
                 "Authorization header should not be logged!",
@@ -16,7 +16,61 @@ class ClientLoggingRequestHeaders : TestBase() {
             )
         }
     }
+    
+    @Test
+    fun excludesAuthorizationHeaderExplicitly() = runBlocking {
+        withAuthHeader(httpClient = httpClient().config { 
+            install(ClientLogging) {
+                req {
+                    authorization { 
+                        off()
+                    }
+                }
+            }
+        }) {
+            assertTrue(
+                "Authorization header should not be logged!",
+                memoryAppender.findEvents("Authorization", Level.DEBUG).isEmpty()
+            )
+        }
+    }
 
+    @Test
+    fun removesPasswordFromAuthorizationHeader() = runBlocking { 
+        withAuthHeader(httpClient = httpClient().config { 
+            install(ClientLogging) {
+                req {
+                    authorization { 
+                        usernameOnly()
+                    }
+                }
+            }
+        }) {
+            assertTrue(
+                "Authorization header containing username 'user' should be logged!",
+                memoryAppender.findEvents("Authorization=[user]", Level.DEBUG).isNotEmpty()
+            )
+        }
+    }
+
+    @Test
+    fun obfuscatesPasswordInAuthorizationHeader() = runBlocking {
+        withAuthHeader(httpClient = httpClient().config {
+            install(ClientLogging) {
+                req {
+                    authorization {
+                        obfuscatePassword()
+                    }
+                }
+            }
+        }) {
+            assertTrue(
+                "Authorization header containing username 'user' and obfuscated password 'password' should be logged!",
+                memoryAppender.findEvents("Authorization=[user,p******d]", Level.DEBUG).isNotEmpty()
+            )
+        }
+    }
+    
     @Test
     fun excludesHeaders() = runBlocking {
         val headers = mapOf(

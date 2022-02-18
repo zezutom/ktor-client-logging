@@ -16,7 +16,7 @@ class TestClient(private val httpClient: HttpClient) {
     
     companion object {
         private val EncodedCredentials =
-            Base64.getEncoder().encodeToString("test:test".toByteArray(Charsets.UTF_8))
+            Base64.getEncoder().encodeToString("user:password".toByteArray(Charsets.UTF_8))
         
         fun newInstance(): TestClient {
             val mockEngine = MockEngine {

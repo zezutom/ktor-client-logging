@@ -104,7 +104,11 @@ abstract class TestBase {
         )
     }
 
-    protected suspend fun withAuthHeader(traceId: TraceId? = null, block: () -> Unit) {
+    protected suspend fun withAuthHeader(
+        traceId: TraceId? = null,
+        httpClient: HttpClient = this.httpClient,
+        block: () -> Unit
+    ) {
         withRequest(traceId, deserializedResponse, testClient(httpClient)::getIpWithAuth, block)
     }
 

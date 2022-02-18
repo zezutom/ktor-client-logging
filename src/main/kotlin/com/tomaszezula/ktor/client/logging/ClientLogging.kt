@@ -34,7 +34,7 @@ class ClientLogging(
 
     class Config {
         var logger: Logger = LoggerFactory.getLogger(HttpClient::class.java)
-        val levelBuilder: LevelBuilder = LevelBuilder()
+        private val levelBuilder: LevelBuilder = LevelBuilder()
         val requestBuilder: RequestBuilder = RequestBuilder()
         val responseBuilder: ResponseBuilder = ResponseBuilder()
 
@@ -85,21 +85,19 @@ class ClientLogging(
             fun authorization(init: AuthorizationBuilder.() -> Unit): AuthorizationBuilder =
                 authorizationBuilder.apply(init)
 
-            class AuthorizationBuilder() {
-                var obfuscatePassword: Boolean = false
-                var usernameOnly: Boolean = false
-                var disabled: Boolean = true
+            class AuthorizationBuilder {
+                var confidentiality: Confidentiality = Confidentiality.EXCLUDE
 
                 fun obfuscatePassword() {
-                    obfuscatePassword = true
+                    confidentiality = Confidentiality.OBFUSCATE_PASSWORD
                 }
 
                 fun usernameOnly() {
-                    usernameOnly = true
+                    confidentiality = Confidentiality.USERNAME_ONLY
                 }
 
                 fun off() {
-                    disabled = true
+                    confidentiality = Confidentiality.EXCLUDE
                 }
             }
         }
@@ -158,14 +156,11 @@ class ClientLogging(
                 config.logger,
                 RequestConfig(
                     config.requestBuilder.levelBuilder.level,
-                    RequestConfig.AuthorizationConfig(
-                        if (authorizationBuilder.obfuscatePassword) Confidentiality.OBFUSCATE_PASSWORD
-                        else if (authorizationBuilder.usernameOnly) Confidentiality.USERNAME_ONLY
-                        else Confidentiality.EXCLUDE
-                    ),
+                    RequestConfig.AuthorizationConfig(authorizationBuilder.confidentiality),
                     config.requestBuilder.excludedHeaders.plus(
-                        if (config.requestBuilder.authorizationBuilder.disabled) setOf(HttpHeaders.Authorization)
-                        else emptySet()
+                        if (config.requestBuilder.authorizationBuilder.confidentiality == Confidentiality.EXCLUDE) {
+                            setOf(HttpHeaders.Authorization)
+                        } else emptySet()
                     ),
                     config.requestBuilder.loggingEnabled
                 ),
@@ -205,16 +200,45 @@ class ClientLogging(
             request.headers.entries()
                 .filterNot { requestConfig.excludedHeaders.contains(it.key) }.toSet()
         )
-        
+
         val body = when (val body = request.body) {
             is TextContent -> String(body.bytes())
             else -> "[request body omitted]"
         }
-        logger.log(
-            "Request ${request.method.value} ${requestUrl}, headers: $headers, body: $body",
+        log(
+            "Request ${request.method.value} ${requestUrl}, headers: ${
+                printHeaders(
+                    headers,
+                    requestConfig.authorization.confidentiality
+                )
+            }, body: $body",
             requestConfig.level
         )
     }
+
+    private fun printHeaders(
+        headers: List<Map.Entry<String, List<String>>>,
+        confidentiality: Confidentiality
+    ): String =
+        when (confidentiality) {
+            Confidentiality.OBFUSCATE_PASSWORD ->
+                withAuthorizationHeader(headers, ObfuscatedPasswordPrinter)
+            Confidentiality.USERNAME_ONLY ->
+                withAuthorizationHeader(headers, UsernameOnlyPrinter)
+            Confidentiality.EXCLUDE ->
+                headers.filterNot { it.key == HttpHeaders.Authorization }.joinToString()
+        }
+
+    private fun withAuthorizationHeader(
+        headers: List<Map.Entry<String, List<String>>>,
+        printer: AuthorizationHeaderPrinter
+    ): String =
+        headers.map { header ->
+            if (header.key == HttpHeaders.Authorization) {
+                (header.key to printer.print(header.value)?.let { listOf(it) }).toEntry()
+            } else header
+        }.joinToString()
+
 
     private suspend fun logResponse(response: HttpResponse) {
         val from = "${response.call.request.method.value} ${response.call.request.url}"
@@ -224,7 +248,7 @@ class ClientLogging(
             val charset = contentType.charset() ?: Charsets.UTF_8
             response.content.tryReadText(charset) ?: "[response body omitted]"
         }
-        logger.log(
+        log(
             "Response from: $from, statusCode: $statusCode, headers: $headers${body?.let { ", body: $it" } ?: ""}",
             responseConfig.level
         )
@@ -234,7 +258,7 @@ class ClientLogging(
         logger.error("Request ${Url(request.url)} failed!", cause)
     }
 
-    private fun extractHeaders(headers: Set<Map.Entry<String, List<Any>>>): List<Map.Entry<String, List<Any>>> =
+    private fun extractHeaders(headers: Set<Map.Entry<String, List<String>>>): List<Map.Entry<String, List<String>>> =
         headers.sortedBy { it.key }
 
     private suspend inline fun ByteReadChannel.tryReadText(charset: Charset): String? = try {
@@ -246,7 +270,7 @@ class ClientLogging(
     private fun isLoggable(context: HttpRequestBuilder): Boolean =
         filters.isEmpty() || filters.any { it(context) }
 
-    private fun Logger.log(message: String, level: Level) {
+    private fun log(message: String, level: Level) {
         when (level) {
             Level.TRACE -> log(message, logger::trace)
             Level.DEBUG -> log(message, logger::debug)
@@ -259,5 +283,11 @@ class ClientLogging(
 
     private fun log(message: String, logHandler: (String) -> Unit) {
         logHandler(message)
+    }
+
+    private fun <K, V> Pair<K, V>.toEntry() = object : Map.Entry<K, V> {
+        override val key: K = first
+        override val value: V = second
+        override fun toString(): String = "$key=$value"
     }
 }
