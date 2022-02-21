@@ -1,6 +1,8 @@
 # ktor-client-logging
 An opinionated logging for the Ktor client.
 
+[![CircleCI](https://circleci.com/gh/zezutom/ktor-client-logging/tree/main.svg?style=shield)](https://circleci.com/gh/zezutom/ktor-client-logging/tree/main)
+
 ## Why another way of logging?
 
 This project is inspired by the [Logging](https://ktor.io/docs/client-logging.html) feature that
@@ -21,7 +23,7 @@ the processing pipeline.
 
 ## Tutorial
 
-* [Default Configuration and Trace ID](#default-configuration)
+* [Default Configuration and Trace ID](#default-configuration-and-trace-id)
 * [Custom Log Level](#custom-log-level)
 * [Log Filters](#log-filters)
 * [Excluding Request Headers](#excluding-request-headers)
@@ -131,7 +133,7 @@ Send a request with explicitly defined headers:
 httpClient.get("https://api.ipify.org/?format=json") {
   header(HttpHeaders.Authorization, "Basic dXNlcjpwYXNzd29yZA==")  // Base64-encoded credentials. Plain text: "user:password"
   header(HttpHeaders.Origin, "http://localhost:8080")
-  header("X-Sensitive", "sensitive content")
+  header("X-Sensitive", "sensitive content")}
 ```
 
 Resulting application logs:
