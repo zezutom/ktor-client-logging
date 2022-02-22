@@ -30,9 +30,9 @@ jobs:
     steps:
       - checkout
       - browser-tools/install-browser-tools
-      - run : gradle test
+      - run : gradle test --stacktrace
       - store_artifacts:
-          path:  build/reports/jacoco/test
+          path:  build
           
       # Download and cache dependencies
       - restore_cache:
