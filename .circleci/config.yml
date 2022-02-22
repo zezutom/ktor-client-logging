@@ -27,7 +27,11 @@ jobs:
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
-
+      - browser-tools/install-browser-tools
+      - run : gradle test
+      - store_artifacts:
+          path:  target
+          
       # Download and cache dependencies
       - restore_cache:
           keys:
@@ -43,4 +47,4 @@ jobs:
           key: v1-dependencies-{{ checksum "build.gradle.kts" }}
 
       # run tests!
-      - run: gradle test
+#      - run: gradle test
