@@ -1,7 +1,9 @@
 # Java Gradle CircleCI 2.0 configuration file
 # See: https://circleci.com/docs/2.0/language-java/
-version: 2
-
+version: 2.1
+orbs:
+  browser-tools: circleci/browser-tools@1.2.3
+  
 # Define a job to be invoked later in a workflow.
 # See: https://circleci.com/docs/2.0/configuration-reference/#jobs
 jobs:
@@ -27,7 +29,13 @@ jobs:
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
       - checkout
-
+      - browser-tools/install-browser-tools
+      - run: curl -Os https://uploader.codecov.io/v0.1.17/linux/codecov
+      - run: chmod +x codecov
+      - run: gradle test
+      - store_artifacts:
+          path:  build
+          
       # Download and cache dependencies
       - restore_cache:
           keys:
@@ -40,7 +48,8 @@ jobs:
       - save_cache:
           paths:
             - ~/.gradle
+            - ~/codecov
           key: v1-dependencies-{{ checksum "build.gradle.kts" }}
 
-      # run tests!
-      - run: gradle test
+      # Upload code coverage
+      - run: ./codecov
