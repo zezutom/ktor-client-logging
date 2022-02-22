@@ -30,7 +30,9 @@ jobs:
     steps:
       - checkout
       - browser-tools/install-browser-tools
-      - run : gradle test --stacktrace
+      - run: curl -Os https://uploader.codecov.io/v0.1.17/linux/codecov
+      - run: chmod +x codecov ./codecov
+      - run: gradle test
       - store_artifacts:
           path:  build
           
@@ -46,6 +48,7 @@ jobs:
       - save_cache:
           paths:
             - ~/.gradle
+            - ~/codecov
           key: v1-dependencies-{{ checksum "build.gradle.kts" }}
 
       # run tests!
