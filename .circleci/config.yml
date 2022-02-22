@@ -32,7 +32,7 @@ jobs:
       - browser-tools/install-browser-tools
       - run : gradle test
       - store_artifacts:
-          path:  target
+          path:  build/reports/jacoco/test
           
       # Download and cache dependencies
       - restore_cache:
