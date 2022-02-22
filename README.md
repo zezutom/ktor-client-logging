@@ -2,6 +2,7 @@
 An opinionated logging for the Ktor client.
 
 [![CircleCI](https://circleci.com/gh/zezutom/ktor-client-logging/tree/main.svg?style=shield)](https://circleci.com/gh/zezutom/ktor-client-logging/tree/main)
+[![codecov](https://codecov.io/gh/zezutom/ktor-client-logging/branch/main/graph/badge.svg)](https://codecov.io/gh/zezutom/ktor-client-logging)
 
 ## Why another way of logging?
 

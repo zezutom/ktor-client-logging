@@ -25,7 +25,6 @@ jobs:
       # Customize the JVM maximum heap limit
       JVM_OPTS: -Xmx3200m
       TERM: dumb
-      CODECOV_TOKEN: '3850027e-0b75-46f0-b30c-723a7eecf2f9'
     # Add steps to the job
     # See: https://circleci.com/docs/2.0/configuration-reference/#steps
     steps:
@@ -53,4 +52,4 @@ jobs:
           key: v1-dependencies-{{ checksum "build.gradle.kts" }}
 
       # Upload code coverage
-      - run: ./codecov -t $CODECOV_TOKEN
+      - run: ./codecov
