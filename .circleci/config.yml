@@ -31,7 +31,7 @@ jobs:
       - checkout
       - browser-tools/install-browser-tools
       - run: curl -Os https://uploader.codecov.io/v0.1.17/linux/codecov
-      - run: chmod +x codecov ./codecov
+      - run: chmod +x codecov
       - run: gradle test
       - store_artifacts:
           path:  build
@@ -51,5 +51,5 @@ jobs:
             - ~/codecov
           key: v1-dependencies-{{ checksum "build.gradle.kts" }}
 
-      # run tests!
-#      - run: gradle test
+      # Gather code coverage
+      - run: ./codecov
